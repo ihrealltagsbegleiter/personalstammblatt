@@ -857,6 +857,43 @@
       </div>
     </div>
 
+
+    <!-- QUALIFIZIERUNGSKURS -->
+    <div class="form-section" id="section-qualifizierung">
+      <div class="section-title">Qualifizierungskurs</div>
+      <div class="section-body">
+        <div class="form-group">
+          <div class="radio-group" style="flex-direction:column;gap:0.75rem;">
+            <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;">
+              <input type="radio" name="qualifizierung" value="ja" style="margin-top:0.2rem;flex-shrink:0;" onchange="toggleQualifizierung()" />
+              <span>Ich habe ein Zertifikat als Alltagsbegleiter*in, Betreuungsassistent*in, Pflegehelfer*in oder -fachkraft, Erzieher*in oder eine ähnliche Ausbildung absolviert. Eine Kopie des Zertifikats sende ich unverzüglich an die Personalverantwortlichen.</span>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;">
+              <input type="radio" name="qualifizierung" value="nein" style="margin-top:0.2rem;flex-shrink:0;" onchange="toggleQualifizierung()" />
+              <span>Ich habe kein Zertifikat</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Nachqualifizierung — nur bei SV-pflichtig + kein Zertifikat -->
+        <div id="qualifizierung-nachholpflicht" style="display:none;margin-top:1rem;background:#fff8e6;border:1px solid #e6c96e;border-radius:4px;padding:1rem 1.1rem;">
+          <p style="font-size:0.83rem;color:#4a3800;line-height:1.6;margin:0 0 0.8rem;">
+            <strong>Hinweis zur Nachqualifizierung (§&nbsp;18 Arbeitsvertrag):</strong><br>
+            Da keine einschlägige Qualifikation vorliegt, wird der Arbeitgeber die Kosten eines Qualifizierungskurses übernehmen.
+            Die Kurskosten (Teilnahme- und Prüfungsgebühren, Reisekosten sowie fortgezahlte Vergütung während der Kurszeit)
+            sind zurückzuzahlen, wenn das Arbeitsverhältnis innerhalb von <strong>24&nbsp;Monaten</strong> nach Kursabschluss
+            aus Gründen endet, die der/die Mitarbeiter*in zu vertreten hat oder wenn der Arbeitgeber verhaltensbedingt kündigt.
+            Die Rückzahlungspflicht staffelt sich: 100&nbsp;% (0–6&nbsp;Monate), 75&nbsp;% (6–12&nbsp;Monate),
+            50&nbsp;% (12–18&nbsp;Monate), 25&nbsp;% (18–24&nbsp;Monate), danach entfällt sie vollständig.
+          </p>
+          <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;font-size:0.85rem;color:#2c2c2c;">
+            <input type="checkbox" id="qualifizierung_bestaetigt" name="qualifizierung_bestaetigt" style="margin-top:0.2rem;flex-shrink:0;" />
+            <span>Ich bin bereit, die fehlende Qualifizierung durch einen vom Arbeitgeber organisierten Kurs nachzuholen, und habe die Rückzahlungsregelung gemäß §&nbsp;18 des Arbeitsvertrags zur Kenntnis genommen.</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- BESTAETIGUNG -->
     <div class="form-section" id="section-bestaetigung">
       <div class="section-title">Bestätigung</div>
@@ -1196,6 +1233,7 @@
       document.getElementById('form-screen').style.display = 'block';
       aktualisiereUnterschriftsDatum();
       wizardInit();
+      ortErmitteln();
     } else {
       document.getElementById('login-error').style.display = 'block';
     }
@@ -1420,6 +1458,22 @@
     y += 2;
     sectionTitle('Weitere Beschäftigungsverhältnisse');
     fieldTall('Weitere Beschäftigungen (Art, Dauer, Entgelt)', val('weitere'));
+
+    sectionTitle('Qualifizierungskurs');
+    const qualVal = document.querySelector('input[name="qualifizierung"]:checked');
+    let qualText = '–';
+    if (qualVal) {
+      if (qualVal.value === 'ja') {
+        qualText = 'Hat Zertifikat (Alltagsbegleiter*in, Betreuungsassistent*in, Pflegehelfer*in o.ä.) – Kopie wird nachgereicht';
+      } else {
+        const cb = document.getElementById('qualifizierung_bestaetigt');
+        qualText = 'Kein Zertifikat vorhanden';
+        if (cb && cb.checked) {
+          qualText += ' – Bereitschaft zur Nachqualifizierung bestätigt (§ 18 Arbeitsvertrag)';
+        }
+      }
+    }
+    fieldTall('Qualifikation', qualText);
     y += 2;
 
     // BESTAETIGUNG
@@ -1945,6 +1999,7 @@
     'section-sozialversicherung',
     'section-mobilitaet',       // nur SV-pflichtig
     'section-weitere',
+    'section-qualifizierung',
     'section-bestaetigung',
   ];
 
@@ -2006,6 +2061,14 @@
     const btnNext = document.getElementById('btn-next');
     const submitArea = document.getElementById('submit-area');
     if (btnBack) btnBack.disabled = (wizardCurrentStep === 0);
+
+    // Wenn Bestätigung-Schritt erreicht: Ort eintragen falls bekannt
+    if (steps[wizardCurrentStep] === 'section-bestaetigung') {
+      const ortFeld = document.getElementById('ort');
+      if (ortFeld && !ortFeld.value && _ortAusGeolocation) {
+        ortFeld.value = _ortAusGeolocation;
+      }
+    }
     const isLast = (wizardCurrentStep === total - 1);
     if (btnNext) btnNext.style.display = isLast ? 'none' : '';
     if (submitArea) submitArea.style.display = isLast ? 'block' : 'none';
@@ -2103,6 +2166,51 @@
       dropdown.style.display = 'none';
     }
   });
+
+
+  function toggleQualifizierung() {
+    const nein = document.querySelector('input[name="qualifizierung"][value="nein"]');
+    const isSV = document.querySelector('input[name="beschaeftigungsart"]:checked')
+                   ?.value === 'Sozialversicherungspflichtig';
+    const box = document.getElementById('qualifizierung-nachholpflicht');
+    if (box) {
+      box.style.display = (nein && nein.checked && isSV) ? '' : 'none';
+      // Checkbox zurücksetzen wenn ausgeblendet
+      if (box.style.display === 'none') {
+        const cb = document.getElementById('qualifizierung_bestaetigt');
+        if (cb) cb.checked = false;
+      }
+    }
+  }
+
+
+  // Ort per Geolocation automatisch ermitteln
+  let _ortAusGeolocation = '';
+
+  function ortErmitteln() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=10&accept-language=de')
+        .then(r => r.json())
+        .then(data => {
+          const city = data.address.city
+                    || data.address.town
+                    || data.address.village
+                    || data.address.municipality
+                    || '';
+          if (city) {
+            _ortAusGeolocation = city;
+            const ortFeld = document.getElementById('ort');
+            if (ortFeld && !ortFeld.value) {
+              ortFeld.value = city;
+            }
+          }
+        })
+        .catch(function() {});
+    }, function() {}, { timeout: 8000 });
+  }
 
 </script>
 <div class="site-footer">
